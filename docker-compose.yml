@@ -1,0 +1,21 @@
+services:
+  eveapp:
+    build: .
+    ports:
+      - "9977:8080"
+    env_file:
+      - path: ./.env
+        required: true
+    depends_on:
+      - redis
+    volumes:
+      - eve_data:/app/data
+
+  redis:
+    image: redis:latest
+    restart: unless-stopped
+    ports:
+      - "6379"
+
+volumes:
+  eve_data:

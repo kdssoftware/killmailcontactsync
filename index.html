@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EVE Contact Manager</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
+        textarea { width: 100%; height: 200px; margin-bottom: 10px; padding: 10px; box-sizing: border-box; }
+        button { padding: 10px 15px; background: #0078D7; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #005A9E; }
+        .htmx-indicator { display: none; margin-top: 10px; font-weight: bold; color: #d76a00; }
+        .htmx-request .htmx-indicator { display: block; }
+        .htmx-request.htmx-indicator { display: block; }
+        .log-entry { padding: 8px; border-bottom: 1px solid #eee; }
+        .log-success { color: green; }
+        .log-info { color: #555; }
+        .log-error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>EVE Online - Kills/contact+standings sync</h1>
+    <h3>Automatically creates contacts with Neutral or Bad standings based zkill stats.</h3>
+    <hr/>
+    <br />
+
+    
+    {{if .LoggedIn}}
+        <p>Logged in as Character ID: <strong>{{.CharID}}</strong> | <a href="/logout">Logout</a></p>
+        
+        <form hx-post="/process" hx-target="#results" hx-indicator="#loading">
+            <label for="names">Paste in-game character names (one per line):</label>
+            <textarea name="names" id="names" required></textarea>
+            
+            <div class="options">
+                <input type="checkbox" id="skip_neutral" name="skip_neutral" value="true" checked>
+                <label for="skip_neutral">Skip creating new contacts if standing will be neutral (0.0)</label>
+            </div>
+
+            <button type="submit">Process Characters</button>
+            <span id="loading" class="htmx-indicator">Processing... please wait!</span>
+        </form>
+        
+        <div id="results" style="margin-top: 20px;"></div>
+    {{else}}
+        <p>You need to log in with your EVE Online account to manage your contacts.</p>
+        <a href="/login"><button>Log in with EVE SSO</button></a>
+    {{end}}
+</body>
+</html>
