@@ -14,3 +14,4 @@ docker compose up
 
 ## screenshots
 
+<img width="702" height="975" alt="Screenshot 2026-06-13 at 11 48 41" src="https://github.com/user-attachments/assets/e2c257ce-8c77-4a72-aa97-ceac8b9e34f4" />
