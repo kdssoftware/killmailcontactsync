@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,10 +25,27 @@ import (
 type ZkillKill struct {
 	KillmailID int `json:"killmail_id"`
 	Zkb        struct {
-		Points int  `json:"points"`
-		Npc    bool `json:"npc"`
+		LocationID          int      `json:"locationID"`
+		Hash                string   `json:"hash"`
+		FittedValue         float64  `json:"fittedValue"`
+		DroppedValue        float64  `json:"droppedValue"`
+		DestroyedValue      float64  `json:"destroyedValue"`
+		TotalValue          float64  `json:"totalValue"`
+		Points              int      `json:"points"`
+		TotalDroppableValue float64  `json:"totalDroppableValue"`
+		Npc                 bool     `json:"npc"`
+		Solo                bool     `json:"solo"`
+		Awox                bool     `json:"awox"`
+		Labels              []string `json:"labels"`
 	} `json:"zkb"`
 }
+
+const (
+	LABEL_HIGHSEC_LOCATION = "loc:highsec"
+	LABEL_LOWSEC_LOCATION  = "loc:lowsec"
+	LABEL_NULL_LOCATION    = "loc:nullsec"
+	LABEL_WH_LOCATION      = "loc:w-space"
+)
 
 var (
 	db          *sql.DB
@@ -191,7 +209,25 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 	names := strings.Split(rawNames, "\n")
 	skipNeutral := r.FormValue("skip_neutral") == "true"
 
-	log.Printf("[processHandler] Received %d lines of names. Skip Neutral: %v\n", len(names), skipNeutral)
+	log.Printf("[processHandler] Received %d lines of names\n", len(names))
+	log.Printf("[processHandler] Input: Skip Neutral: %v\n", skipNeutral)
+
+	systemHS := r.FormValue("system_hs") == "true"
+	systemLS := r.FormValue("system_ls") == "true"
+	systemNull := r.FormValue("system_null") == "true"
+	systemWH := r.FormValue("system_wh") == "true"
+
+	log.Printf("[processHandler] Input: System HS: %v\n", systemHS)
+	log.Printf("[processHandler] Input: System LS: %v\n", systemLS)
+	log.Printf("[processHandler] Input: System Null: %v\n", systemNull)
+	log.Printf("[processHandler] Input: System WH: %v\n", systemWH)
+
+	includeSystems := IncludeSystems{
+		HS:   systemHS,
+		LS:   systemLS,
+		Null: systemNull,
+		WH:   systemWH,
+	}
 
 	var results strings.Builder
 
@@ -239,7 +275,7 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 		idToName[targetID] = name
 		log.Printf("[processHandler] Character '%s' resolved to ID: %d\n", name, targetID)
 
-		isThreat, err := checkZKillboard(context.Background(), targetID)
+		isThreat, err := checkZKillboard(context.Background(), targetID, includeSystems)
 		if err != nil {
 			log.Printf("[processHandler] Error checking killmails for %d ('%s'): %v\n", targetID, name, err)
 			results.WriteString(fmt.Sprintf("<div class='log-entry log-error'>Error checking killmails for %s: %v</div>", name, err))
@@ -282,6 +318,16 @@ func processHandler(w http.ResponseWriter, r *http.Request) {
 
 	// process bulk
 	for standing, ids := range toCreate {
+		systemHS := r.FormValue("system_hs") == "true"
+		systemLS := r.FormValue("system_ls") == "true"
+		systemNull := r.FormValue("system_null") == "true"
+		systemWH := r.FormValue("system_wh") == "true"
+
+		log.Printf("[processHandler] Input: System HS: %v\n", systemHS)
+		log.Printf("[processHandler] Input: System LS: %v\n", systemLS)
+		log.Printf("[processHandler] Input: System Null: %v\n", systemNull)
+		log.Printf("[processHandler] Input: System WH: %v\n", systemWH)
+
 		for i := 0; i < len(ids); i += 100 {
 			end := i + 100
 			if end > len(ids) {
@@ -372,7 +418,14 @@ func cachedGet(ctx context.Context, client *http.Client, urlStr string) ([]byte,
 	return nil, fmt.Errorf("HTTP %d - %s", resp.StatusCode, string(body))
 }
 
-func checkZKillboard(ctx context.Context, charID int) (bool, error) {
+type IncludeSystems struct {
+	HS   bool
+	LS   bool
+	Null bool
+	WH   bool
+}
+
+func checkZKillboard(ctx context.Context, charID int, includeSystems IncludeSystems) (bool, error) {
 	urlStr := fmt.Sprintf("https://zkillboard.com/api/kills/characterID/%d/", charID)
 
 	body, err := cachedGet(ctx, http.DefaultClient, urlStr)
@@ -390,11 +443,27 @@ func checkZKillboard(ctx context.Context, charID int) (bool, error) {
 	for _, k := range kills {
 		if !k.Zkb.Npc {
 			totalPoints += k.Zkb.Points
+			if totalPoints > 250 {
+				log.Printf("[checkZKillboard] Character %d has %d total non-NPC kill points.\n", charID, totalPoints)
+				return true, nil
+			}
 		}
+		if includeSystems.HS && slices.Contains(k.Zkb.Labels, LABEL_HIGHSEC_LOCATION) {
+			log.Printf("[checkZKillboard] Character %d has kill in highsec.\n", charID)
+		}
+		if includeSystems.LS && slices.Contains(k.Zkb.Labels, LABEL_LOWSEC_LOCATION) {
+			log.Printf("[checkZKillboard] Character %d has kill in lowsec.\n", charID)
+		}
+		if includeSystems.Null && slices.Contains(k.Zkb.Labels, LABEL_NULL_LOCATION) {
+			log.Printf("[checkZKillboard] Character %d has kill in nullsec.\n", charID)
+		}
+		if includeSystems.WH && slices.Contains(k.Zkb.Labels, LABEL_WH_LOCATION) {
+			log.Printf("[checkZKillboard] Character %d has kill in w-space.\n", charID)
+		}
+
 	}
 
-	log.Printf("[checkZKillboard] Character %d has %d total non-NPC kill points.\n", charID, totalPoints)
-	return totalPoints > 250, nil
+	return false, nil
 }
 
 func getContacts(ctx context.Context, client *http.Client, charID string) ([]Contact, error) {

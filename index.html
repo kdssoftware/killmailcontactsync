@@ -36,6 +36,16 @@
                 <input type="checkbox" id="skip_neutral" name="skip_neutral" value="true" checked>
                 <label for="skip_neutral">Skip creating new contacts if standing will be neutral (0.0)</label>
             </div>
+            <div class="options">
+                <input type="checkbox" id="system_hs" name="system_hs" value="true" checked>
+                <label for="system_hs">Include High Security Kills</label>
+                <input type="checkbox" id="system_ls" name="system_ls" value="true" checked>
+                <label for="system_ls">Include Low Security Kills</label>
+                <input type="checkbox" id="system_null" name="system_null" value="true" checked>
+                <label for="system_null">Include Null Security Kills</label>
+                <input type="checkbox" id="system_wh" name="system_wh" value="true" checked>
+                <label for="system_wh">Include Wormhole Kill</label>
+            </div>
 
             <button type="submit">Process Characters</button>
             <span id="loading" class="htmx-indicator">Processing... please wait!</span>
